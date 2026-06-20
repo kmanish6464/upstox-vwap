@@ -14,48 +14,18 @@ Supporting scripts:
 - `nse_oi_plotter.py` — Live chart from MongoDB OI data
 - `dashboard_server.py` — Flask REST API + HTML dashboard for bhavcopy data (`http://localhost:5050`)
 
-## Running the bots
+## Setup
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-# Also needed for UPSTOX_LIVE1005.py: pip install pytz pymongo
+pip install pytz pymongo flask flask-cors  # additional deps not in requirements.txt
 
-# Backtest (reads historical candles from Upstox API)
-python upstox_bot_0905.py backtest
-
-# Paper live (polls Upstox intraday data, no real orders)
-python upstox_bot_0905.py live
-
-# Live trader — paper simulation (default when enable_live_orders=False)
-python UPSTOX_LIVE1005.py
-
-# Live trader — force paper mode
-python UPSTOX_LIVE1005.py --paper
-
-# Replay today's closed candles offline
-python UPSTOX_LIVE1005.py --simulate
-
-# NSE OI monitor (requires MongoDB running)
-python nse_oi_fetcher.py   # Terminal 1
-python nse_oi_plotter.py   # Terminal 2
-
-# Bhavcopy dashboard
-python dashboard_server.py
+cp config.template.ini config.ini          # then fill in credentials
 ```
 
-## Configuration
+**`token.txt`** — Upstox Bearer token. Expires daily; regenerate from the Upstox developer portal. A `401` from any Upstox API call means the token is stale.
 
-All trading parameters live in **`config.ini`**. Key sections:
-
-- `[UPSTOX]` — instrument keys (`NSE_FO|XXXXX` format) and `token_file`
-- `[SETTINGS]` — candle timeframe (`1minute`/`5minute`/etc.), poll interval, lot size
-- `[ZONES]` — no-trade band, hard limits, support/resistance levels
-- `[BACKTEST]` — date range for historical runs
-- `[LIVE_TRADING]` — `enable_live_orders`, auto square-off time, daily loss circuit breaker
-- `[TELEGRAM]` — bot token, channel, `enable_telegram = False/True`
-
-**`token.txt`** — Upstox Bearer token. Expires daily; regenerate from the Upstox developer portal. A `401` response from any Upstox API call means the token is stale.
+**Instrument keys** (`NSE_FO|XXXXX`) — find the correct key from the [Upstox instrument master](https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz). Update `Nifty_futures_key` in `config.ini` every expiry.
 
 ## Architecture and key invariants
 
@@ -63,11 +33,15 @@ All trading parameters live in **`config.ini`**. Key sections:
 - **STRONG**: price > EMA7, EMA21, and VWAP → exits when close < previous close
 - **PULLBACK**: price > EMA7 only → exits at VWAP breach OR close < previous close
 
+**`PositionManager` class** (`UPSTOX_LIVE1005.py`): Central abstraction that tracks one open position at a time, handles paper vs live order routing, position sync against the broker, circuit breaker checks, and P&L accounting. All entry/exit logic goes through `open_call()`, `open_put()`, and `close_position()`.
+
 **Instrument key encoding**: Keys like `NSE_FO|66071` must be URL-encoded (`NSE_FO%7C66071`) in all Upstox API URLs. Upstox silently returns empty data without the encoding. Both bots have a `_encode_key()` / `_encode()` helper for this.
 
 **DataFrame columns**: Candles are stored as `[ts, o, h, l, c, v, oi]`. The `ts` column is always timezone-aware IST (`Asia/Kolkata`). VWAP computation groups by `df["ts"].dt.date` and cumsum per day.
 
 **Live candle guard**: In live mode, the most recent candle from Upstox intraday is always dropped (`raw.iloc[:-1]`) because it is still forming. After resampling, any candle whose close time hasn't passed yet is also filtered out.
+
+**NSE session warm-up** (`nse_oi_fetcher.py`): NSE blocks headless scrapers. The fetcher warms up a `requests.Session` by hitting the NSE homepage first to obtain cookies, then calls the option-chain API. On repeated `401`s, add a longer sleep in the warm-up or rotate the User-Agent.
 
 **MongoDB databases**:
 - `nse_oi_db` — collections `oi_snapshots` and `oi_summary` (NSE option chain OI)
