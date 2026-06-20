@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swing Scanner — NSE | Upstox</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #07090d;
+  --surface:   #0d1018;
+  --card:      #111620;
+  --border:    #1a2232;
+  --border2:   #212e42;
+  --green:     #00e5a0;
+  --green2:    #00b87a;
+  --green-dim: #00e5a012;
+  --red:       #ff4560;
+  --red2:      #cc2840;
+  --red-dim:   #ff456012;
+  --gold:      #f0b429;
+  --gold-dim:  #f0b42912;
+  --blue:      #4d9eff;
+  --blue-dim:  #4d9eff12;
+  --orange:    #ff9f43;
+  --orange-dim:#ff9f4312;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa12;
+  --cyan:      #22d3ee;
+  --muted:     #3d4f68;
+  --text:      #c9d1e0;
+  --text2:     #6b7fa0;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-ui:   'Syne', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:13px;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-mono);min-height:100vh}
+
+/* ── HEADER ── */
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 24px;border-bottom:1px solid var(--border);
+  background:var(--surface);position:sticky;top:0;z-index:100;
+  gap:12px;flex-wrap:wrap;
+}
+.logo{font-family:var(--font-ui);font-weight:800;font-size:1.25rem;
+  color:var(--blue);letter-spacing:-0.5px;white-space:nowrap}
+.logo em{color:var(--green);font-style:normal}
+.badge-row{display:flex;align-items:center;gap:8px}
+.badge{font-size:0.65rem;padding:2px 9px;border-radius:999px;font-weight:700;letter-spacing:0.5px}
+.badge-swing{background:var(--purple-dim);color:var(--purple);border:1px solid var(--purple)}
+.badge-daily{background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)}
+.hdr-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+/* ── MARKET PILL ── */
+.mkt-pill{display:flex;align-items:center;gap:6px;padding:4px 11px;
+  border-radius:999px;font-size:0.68rem;font-weight:700;
+  background:var(--card);border:1px solid var(--border2);white-space:nowrap}
+.mkt-pill.open{border-color:var(--green);color:var(--green)}
+.mkt-pill.closed{color:var(--muted)}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.mkt-pill.open .dot{animation:blink 1.4s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ── BUTTONS ── */
+.btn{font-family:var(--font-mono);font-size:0.72rem;padding:5px 14px;
+  border-radius:6px;cursor:pointer;border:1px solid var(--border2);
+  background:var(--card);color:var(--text);transition:all .15s;white-space:nowrap}
+.btn:hover{border-color:var(--blue);color:var(--blue)}
+.btn.primary{background:var(--blue);color:#000;border-color:var(--blue);font-weight:700}
+.btn.primary:hover{opacity:.85}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── PROGRESS BAR ── */
+.progress-wrap{height:3px;background:var(--border);position:relative;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--green));
+  transition:width .5s;width:0%}
+
+/* ── STATS STRIP ── */
+.stats{display:flex;gap:8px;padding:10px 24px;background:var(--surface);
+  border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+.sc{display:flex;flex-direction:column;gap:2px;padding:7px 14px;
+  border-radius:8px;background:var(--card);border:1px solid var(--border);min-width:90px}
+.sc-label{font-size:0.6rem;color:var(--text2);text-transform:uppercase;letter-spacing:.6px}
+.sc-val{font-size:1rem;font-weight:700;font-family:var(--font-ui)}
+.sc-val.green{color:var(--green)}.sc-val.red{color:var(--red)}
+.sc-val.gold{color:var(--gold)}.sc-val.blue{color:var(--blue)}
+.sc-val.orange{color:var(--orange)}.sc-val.purple{color:var(--purple)}
+.sc-val.muted{color:var(--muted)}
+.scan-info{margin-left:auto;font-size:0.65rem;color:var(--text2);text-align:right;line-height:1.6}
+
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;gap:6px;padding:9px 24px;border-bottom:1px solid var(--border);
+  flex-wrap:wrap;align-items:center;background:var(--bg)}
+.fl{font-size:0.62rem;color:var(--text2);margin-right:2px;white-space:nowrap}
+.fb{font-family:var(--font-mono);font-size:0.68rem;padding:4px 11px;border-radius:6px;
+  cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text2);transition:all .15s}
+.fb:hover{color:var(--text);border-color:var(--text)}
+.fb.active{font-weight:700}
+.fb.f-all.active{background:var(--blue-dim);color:var(--blue);border-color:var(--blue)}
+.fb.f-sbuy.active,.fb.f-buy.active,.fb.f-longs.active,.fb.f-pbb.active
+  {background:var(--green-dim);color:var(--green);border-color:var(--green)}
+.fb.f-ssell.active,.fb.f-sell.active,.fb.f-shorts.active,.fb.f-pbs.active
+  {background:var(--red-dim);color:var(--red);border-color:var(--red)}
+.fb.f-os.active,.fb.f-ob.active
+  {background:var(--gold-dim);color:var(--gold);border-color:var(--gold)}
+.search{margin-left:auto;background:var(--card);border:1px solid var(--border2);
+  border-radius:6px;padding:4px 10px;color:var(--text);font-family:var(--font-mono);
+  font-size:0.7rem;outline:none;width:150px}
+.search:focus{border-color:var(--blue)}
+
+/* ── ERROR BANNER ── */
+.err{display:none;margin:10px 24px;padding:9px 14px;background:var(--red-dim);
+  border:1px solid var(--red);border-radius:7px;color:var(--red);font-size:0.72rem}
+.err.show{display:block}
+
+/* ── TABLE ── */
+.twrap{overflow-x:auto;padding:0 24px 32px}
+table{width:100%;border-collapse:collapse;margin-top:10px;min-width:1100px}
+thead th{font-size:0.62rem;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;
+  padding:7px 8px;text-align:right;border-bottom:1px solid var(--border);
+  white-space:nowrap;cursor:pointer;user-select:none}
+thead th:first-child,thead th:nth-child(2){text-align:left}
+thead th:hover{color:var(--blue)}
+thead th.sorted{color:var(--blue)}
+.si{opacity:.5;margin-left:3px}
+
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:hover{background:var(--card)}
+.r-sbuy  {border-left:3px solid var(--green)}
+.r-buy   {border-left:3px solid var(--green2)}
+.r-pbb   {border-left:3px solid var(--gold)}
+.r-ssell {border-left:3px solid var(--red)}
+.r-sell  {border-left:3px solid var(--red2)}
+.r-pbs   {border-left:3px solid var(--orange)}
+.r-os    {border-left:3px solid var(--cyan)}
+.r-ob    {border-left:3px solid var(--orange)}
+.r-n     {border-left:3px solid var(--border2)}
+
+td{font-size:0.76rem;padding:8px 8px;text-align:right;white-space:nowrap}
+td:first-child,td:nth-child(2){text-align:left}
+
+.sym{font-weight:700;font-size:0.8rem}
+.ikey{font-size:0.58rem;color:var(--muted);display:block;margin-top:1px}
+
+.price{font-weight:600;font-size:0.82rem}
+.pos{color:var(--green)}.neg{color:var(--red)}.nu{color:var(--text2)}
+
+/* ── SIGNAL BADGE ── */
+.sb{display:inline-flex;align-items:center;padding:3px 9px;border-radius:5px;
+  font-size:0.65rem;font-weight:700;letter-spacing:.3px;gap:3px;white-space:nowrap}
+.sb-STRONG_BUY  {background:var(--green-dim);color:var(--green);border:1px solid var(--green)}
+.sb-BUY         {background:var(--green-dim);color:var(--green2);border:1px solid var(--green2)}
+.sb-PULLBACK_BUY{background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold)}
+.sb-STRONG_SELL {background:var(--red-dim);color:var(--red);border:1px solid var(--red)}
+.sb-SELL        {background:var(--red-dim);color:var(--red2);border:1px solid var(--red2)}
+.sb-PULLBACK_SELL{background:var(--orange-dim);color:var(--orange);border:1px solid var(--orange)}
+.sb-OVERSOLD    {background:var(--blue-dim);color:var(--cyan);border:1px solid var(--cyan)}
+.sb-OVERBOUGHT  {background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold)}
+.sb-NEUTRAL     {background:transparent;color:var(--muted);border:1px solid var(--border2)}
+
+/* ── SCORE BAR ── */
+.sbar{display:flex;align-items:center;gap:5px;justify-content:flex-end}
+.track{width:55px;height:5px;background:var(--border2);border-radius:3px;overflow:hidden}
+.fill{height:100%;border-radius:3px;transition:width .4s}
+.fill.g{background:var(--green)}.fill.r{background:var(--red)}
+.fill.gold{background:var(--gold)}.fill.or{background:var(--orange)}
+.fill.cy{background:var(--cyan)}.fill.mu{background:var(--muted)}
+.spct{font-size:0.63rem;color:var(--text2);min-width:26px}
+
+/* ── ADX / RSI ── */
+.adx-strong{color:var(--green)}.adx-med{color:var(--gold)}.adx-weak{color:var(--muted)}
+.rsi-ob{color:var(--red)}.rsi-os{color:var(--cyan)}.rsi-bull{color:var(--green)}.rsi-bear{color:var(--orange)}
+
+/* ── SUPERTREND ── */
+.st-bull{color:var(--green);font-weight:700}.st-bear{color:var(--red);font-weight:700}
+
+/* ── 52W RANGE BAR ── */
+.range-wrap{display:flex;align-items:center;gap:4px;justify-content:flex-end}
+.range-track{width:50px;height:4px;background:var(--border2);border-radius:2px;position:relative}
+.range-pos{height:100%;background:linear-gradient(90deg,var(--red),var(--green));border-radius:2px}
+.range-pct{font-size:0.62rem;color:var(--text2);min-width:32px;text-align:right}
+
+/* ── STOP LOSS ── */
+.stop{font-size:0.68rem;color:var(--muted)}
+
+/* ── OVERLAY ── */
+.overlay{display:none;position:fixed;inset:0;z-index:200;
+  background:rgba(7,9,13,.88);backdrop-filter:blur(5px);
+  align-items:center;justify-content:center;flex-direction:column;gap:14px}
+.overlay.show{display:flex}
+.spinner{width:34px;height:34px;border-radius:50%;
+  border:3px solid var(--border2);border-top-color:var(--blue);
+  animation:spin .65s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ov-msg{font-size:.82rem;color:var(--text2);text-align:center;line-height:1.8}
+.ov-prog{font-size:1.2rem;font-weight:700;color:var(--blue)}
+
+/* ── EMPTY ── */
+.empty{padding:60px;text-align:center;color:var(--muted);font-size:.82rem}
+
+/* ── COUNTDOWN ── */
+#cdown{font-size:.62rem;color:var(--muted);min-width:90px;text-align:right}
+
+@media(max-width:900px){
+  .stats,.filter-bar,.twrap{padding-left:10px;padding-right:10px}
+  .header{padding:10px 10px}
+  .search{width:110px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div class="overlay" id="overlay">
+  <div class="spinner"></div>
+  <div class="ov-prog" id="ov-prog"></div>
+  <div class="ov-msg" id="ov-msg">Scanning universe…<br>
+    <span style="font-size:.7rem;color:var(--muted)">Daily candles · ADX · RSI · EMA · Supertrend</span>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="header">
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="logo">📡 Swing<em>Scan</em></div>
+    <div class="badge-row">
+      <span class="badge badge-swing">SWING</span>
+      <span class="badge badge-daily">DAILY TF</span>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <span id="last-upd" style="font-size:.65rem;color:var(--text2)">–</span>
+    <span id="cdown"></span>
+    <div class="mkt-pill" id="mkt-pill"><span class="dot"></span><span id="mkt-lbl">–</span></div>
+    <button class="btn primary" id="ref-btn" onclick="doRefresh()">⟳ Scan Now</button>
+  </div>
+</header>
+
+<!-- PROGRESS BAR -->
+<div class="progress-wrap"><div class="progress-fill" id="prog-fill"></div></div>
+
+<!-- STATS STRIP -->
+<div class="stats">
+  <div class="sc"><span class="sc-label">Universe</span><span class="sc-val blue" id="s-tot">–</span></div>
+  <div class="sc"><span class="sc-label">🚀 Strong Buy</span><span class="sc-val green" id="s-sb">–</span></div>
+  <div class="sc"><span class="sc-label">🟢 Buy</span><span class="sc-val green" id="s-b">–</span></div>
+  <div class="sc"><span class="sc-label">🌿 PB Buy</span><span class="sc-val gold" id="s-pbb">–</span></div>
+  <div class="sc"><span class="sc-label">💣 Strong Sell</span><span class="sc-val red" id="s-ss">–</span></div>
+  <div class="sc"><span class="sc-label">🔴 Sell</span><span class="sc-val red" id="s-s">–</span></div>
+  <div class="sc"><span class="sc-label">🍂 PB Sell</span><span class="sc-val orange" id="s-pbs">–</span></div>
+  <div class="sc"><span class="sc-label">⚡ Oversold</span><span class="sc-val" id="s-os" style="color:var(--cyan)">–</span></div>
+  <div class="sc"><span class="sc-label">🔥 Overbought</span><span class="sc-val gold" id="s-ob">–</span></div>
+  <div class="scan-info" id="scan-info"></div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <span class="fl">FILTER:</span>
+  <button class="fb f-all active"   data-f="ALL"          onclick="setF(this)">ALL</button>
+  <button class="fb f-sbuy"         data-f="STRONG_BUY"   onclick="setF(this)">🚀 Strong Buy</button>
+  <button class="fb f-longs"        data-f="ALL_LONGS"    onclick="setF(this)">🟢 All Longs</button>
+  <button class="fb f-pbb"          data-f="PULLBACK_BUY" onclick="setF(this)">🌿 PB Buy</button>
+  <button class="fb f-ssell"        data-f="STRONG_SELL"  onclick="setF(this)">💣 Strong Sell</button>
+  <button class="fb f-shorts"       data-f="ALL_SHORTS"   onclick="setF(this)">🔴 All Shorts</button>
+  <button class="fb f-pbs"          data-f="PULLBACK_SELL"onclick="setF(this)">🍂 PB Sell</button>
+  <button class="fb f-os"           data-f="OVERSOLD"     onclick="setF(this)">⚡ Oversold</button>
+  <button class="fb f-ob"           data-f="OVERBOUGHT"   onclick="setF(this)">🔥 Overbought</button>
+  <input class="search" id="srch" placeholder="🔍 Symbol…" oninput="render()">
+</div>
+
+<!-- ERROR -->
+<div class="err" id="err-banner"></div>
+
+<!-- TABLE -->
+<div class="twrap">
+<table id="tbl">
+  <thead>
+    <tr>
+      <th onclick="srt('symbol')"      >SYMBOL      <span class="si">↕</span></th>
+      <th onclick="srt('signal_type')" >SIGNAL      <span class="si">↕</span></th>
+      <th onclick="srt('score')"       >SCORE       <span class="si">↕</span></th>
+      <th onclick="srt('close')"       >PRICE       <span class="si">↕</span></th>
+      <th onclick="srt('change_pct')"  >CHG%        <span class="si">↕</span></th>
+      <th onclick="srt('adx')"         >ADX(14)     <span class="si">↕</span></th>
+      <th onclick="srt('plus_di')"     >+DI         <span class="si">↕</span></th>
+      <th onclick="srt('minus_di')"    >−DI         <span class="si">↕</span></th>
+      <th onclick="srt('rsi')"         >RSI(14)     <span class="si">↕</span></th>
+      <th onclick="srt('supertrend_dir')">STREND    <span class="si">↕</span></th>
+      <th onclick="srt('ema20')"       >EMA20       <span class="si">↕</span></th>
+      <th onclick="srt('ema50')"       >EMA50       <span class="si">↕</span></th>
+      <th onclick="srt('ema200')"      >EMA200      <span class="si">↕</span></th>
+      <th onclick="srt('dist_52h_pct')">52W HI%     <span class="si">↕</span></th>
+      <th onclick="srt('dist_52l_pct')">52W RANGE   <span class="si">↕</span></th>
+      <th onclick="srt('atr')"         >ATR / SL    <span class="si">↕</span></th>
+      <th onclick="srt('volume')"      >VOLUME      <span class="si">↕</span></th>
+    </tr>
+  </thead>
+  <tbody id="tbody">
+    <tr><td colspan="17" class="empty">Waiting for scan results…</td></tr>
+  </tbody>
+</table>
+</div>
+
+<script>
+const API = 'http://localhost:5051';
+const AUTO_SECS = 60;
+
+let allData = [], curFilter = 'ALL', sortCol = 'score', sortDir = -1;
+let cdTimer = null, cdVal = AUTO_SECS;
+
+// ── FETCH ────────────────────────────────────────────────────────
+async function fetchScan(showOv = false) {
+  if (showOv) showOv2('Initialising scan…');
+  try {
+    const r = await fetch(`${API}/api/scan`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+
+    allData = d.results || [];
+    setStats(d);
+    hideErr();
+    render();
+    document.getElementById('last-upd').textContent = d.updated_at ? '⏱ '+d.updated_at : '–';
+    if (d.scanning) {
+      updateProg(d.progress || 0);
+      showOv2(`Scanning… ${d.progress||0}%`);
+    } else {
+      hideProg(); if(showOv) hideOv();
+    }
+  } catch(e) {
+    showErr('Cannot reach server at '+API+' — run scanner_server.py first.');
+    if(showOv) hideOv();
+  }
+}
+
+async function fetchStatus() {
+  try {
+    const d = await (await fetch(`${API}/api/status`)).json();
+    const pill = document.getElementById('mkt-pill');
+    const lbl  = document.getElementById('mkt-lbl');
+    pill.className = 'mkt-pill '+(d.market_open ? 'open':'closed');
+    lbl.textContent = d.market_open ? 'MARKET OPEN':'MARKET CLOSED';
+    if (d.scanning) { updateProg(d.progress||0); } else hideProg();
+    document.getElementById('scan-info').innerHTML =
+      `Universe: <b style="color:var(--blue)">${d.universe_size||'–'}</b> symbols &nbsp;|&nbsp;`+
+      `Refresh: <b style="color:var(--blue)">${d.refresh_secs||300}s</b> &nbsp;|&nbsp;`+
+      `Token: <b style="${d.token_ok?'color:var(--green)':'color:var(--red)'}">${d.token_ok?'OK':'MISSING'}</b>`;
+  } catch(e) {
+    document.getElementById('mkt-lbl').textContent = 'SERVER OFF';
+  }
+}
+
+function setStats(d) {
+  const c = d.counts || {};
+  document.getElementById('s-tot').textContent = d.total || allData.length;
+  document.getElementById('s-sb').textContent  = c.STRONG_BUY   || 0;
+  document.getElementById('s-b').textContent   = c.BUY           || 0;
+  document.getElementById('s-pbb').textContent = c.PULLBACK_BUY  || 0;
+  document.getElementById('s-ss').textContent  = c.STRONG_SELL   || 0;
+  document.getElementById('s-s').textContent   = c.SELL          || 0;
+  document.getElementById('s-pbs').textContent = c.PULLBACK_SELL || 0;
+  document.getElementById('s-os').textContent  = c.OVERSOLD      || 0;
+  document.getElementById('s-ob').textContent  = c.OVERBOUGHT    || 0;
+}
+
+// ── RENDER ───────────────────────────────────────────────────────
+function render() {
+  const srch = document.getElementById('srch').value.trim().toLowerCase();
+  const LONG_TYPES  = ['STRONG_BUY','BUY','PULLBACK_BUY'];
+  const SHORT_TYPES = ['STRONG_SELL','SELL','PULLBACK_SELL'];
+
+  let rows = allData.filter(r => {
+    const st = r.signal_type || 'NEUTRAL';
+    let ok = true;
+    if (curFilter === 'ALL_LONGS')    ok = LONG_TYPES.includes(st);
+    else if (curFilter === 'ALL_SHORTS') ok = SHORT_TYPES.includes(st);
+    else if (curFilter !== 'ALL')     ok = st === curFilter;
+    return ok && (!srch || r.symbol.toLowerCase().includes(srch));
+  });
+
+  rows.sort((a,b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (va == null) va = sortDir>0 ? Infinity : -Infinity;
+    if (vb == null) vb = sortDir>0 ? Infinity : -Infinity;
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return va < vb ? -sortDir : va > vb ? sortDir : 0;
+  });
+
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="17" class="empty">No results for current filter.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(rowHtml).join('');
+}
+
+function rowHtml(r) {
+  const st = r.signal_type || 'NEUTRAL';
+  const rowCls = {
+    STRONG_BUY:'r-sbuy', BUY:'r-buy', PULLBACK_BUY:'r-pbb',
+    STRONG_SELL:'r-ssell', SELL:'r-sell', PULLBACK_SELL:'r-pbs',
+    OVERSOLD:'r-os', OVERBOUGHT:'r-ob', NEUTRAL:'r-n'
+  }[st]||'r-n';
+
+  const p  = r.close, cp = r.change_pct;
+  const chgCls = cp > 0 ? 'pos' : cp < 0 ? 'neg' : 'nu';
+  const chgStr = cp != null ? (cp>0?'+':'')+cp.toFixed(2)+'%' : '–';
+
+  // ADX class
+  const adx = r.adx;
+  const adxCls = !adx ? 'nu' : adx>=30 ? 'adx-strong' : adx>=20 ? 'adx-med' : 'adx-weak';
+
+  // RSI class
+  const rsi = r.rsi;
+  const rsiCls = !rsi ? 'nu' : rsi>=70 ? 'rsi-ob' : rsi<=30 ? 'rsi-os'
+                               : rsi>=50 ? 'rsi-bull' : 'rsi-bear';
+
+  // +DI / -DI
+  const pdi = r.plus_di, mdi = r.minus_di;
+  const pdiCls = pdi && mdi ? (pdi>mdi?'pos':'neg') : 'nu';
+  const mdiCls = pdi && mdi ? (mdi>pdi?'neg':'pos') : 'nu';  // red when dominant bearish
+
+  // Supertrend
+  const stDir = r.supertrend_dir;
+  const stHtml = stDir === 1 ? '<span class="st-bull">▲ BULL</span>'
+               : stDir === -1 ? '<span class="st-bear">▼ BEAR</span>'
+               : '<span class="nu">–</span>';
+
+  // EMA vs price
+  const emaVal = (v, price) => {
+    if (v == null || price == null) return '–';
+    const cls = price > v ? 'pos' : price < v ? 'neg' : 'nu';
+    return `<span class="${cls}">${fmt(v)}</span>`;
+  };
+
+  // Score bar
+  const score = r.score || 0;
+  const barCls = ['STRONG_BUY','BUY','PULLBACK_BUY'].includes(st) ? 'g'
+               : ['STRONG_SELL','SELL','PULLBACK_SELL'].includes(st) ? 'r'
+               : st==='OVERSOLD' ? 'cy' : 'mu';
+
+  // 52W range bar (how far from low to high)
+  let rangeHtml = '–';
+  if (r.w52_high && r.w52_low && r.close) {
+    const rng = r.w52_high - r.w52_low;
+    const pct = rng > 0 ? Math.round(((r.close - r.w52_low)/rng)*100) : 0;
+    rangeHtml = `<div class="range-wrap">
+      <div class="range-track"><div class="range-pos" style="width:${pct}%"></div></div>
+      <span class="range-pct">${pct}%</span></div>`;
+  }
+
+  // 52W high distance
+  const h52 = r.dist_52h_pct != null ? `<span class="${r.dist_52h_pct>=0?'pos':'neg'}">${r.dist_52h_pct>0?'+':''}${r.dist_52h_pct.toFixed(1)}%</span>` : '–';
+
+  // ATR / Stop Loss
+  const slLong  = r.stop_long  != null ? fmt(r.stop_long)  : '–';
+  const slShort = r.stop_short != null ? fmt(r.stop_short) : '–';
+  const slHtml  = ['STRONG_BUY','BUY','PULLBACK_BUY'].includes(st)
+    ? `<span class="neg" title="Long SL = LTP − 2×ATR">${slLong}</span>`
+    : ['STRONG_SELL','SELL','PULLBACK_SELL'].includes(st)
+    ? `<span class="pos" title="Short SL = LTP + 2×ATR">${slShort}</span>`
+    : `<span class="stop">${r.atr ? r.atr.toFixed(1) : '–'}</span>`;
+
+  // Volume
+  const vol = r.volume;
+  const volStr = !vol ? '–' : vol>=1e7 ? (vol/1e7).toFixed(1)+'Cr'
+                : vol>=1e5 ? (vol/1e5).toFixed(1)+'L'
+                : vol.toLocaleString();
+  const volRatio = (r.vol_ma20 && r.volume) ? r.volume/r.vol_ma20 : 0;
+  const volCls = volRatio>=2?'pos':volRatio>=1.2?'gold':'nu';
+
+  return `<tr class="${rowCls}">
+    <td><span class="sym">${r.symbol}</span><span class="ikey">${r.instrument||''}</span></td>
+    <td><span class="sb sb-${st}">${r.signal||'–'}</span></td>
+    <td><div class="sbar">
+      <div class="track"><div class="fill ${barCls}" style="width:${score}%"></div></div>
+      <span class="spct">${score}</span></div></td>
+    <td class="price">${p!=null?inr(p):'–'}</td>
+    <td class="${chgCls}">${chgStr}</td>
+    <td class="${adxCls}">${adx!=null?adx.toFixed(1):'–'}</td>
+    <td class="${pdiCls}">${pdi!=null?pdi.toFixed(1):'–'}</td>
+    <td class="${mdiCls}">${mdi!=null?mdi.toFixed(1):'–'}</td>
+    <td class="${rsiCls}">${rsi!=null?rsi.toFixed(1):'–'}</td>
+    <td>${stHtml}</td>
+    <td>${emaVal(r.ema20,p)}</td>
+    <td>${emaVal(r.ema50,p)}</td>
+    <td>${emaVal(r.ema200,p)}</td>
+    <td>${h52}</td>
+    <td>${rangeHtml}</td>
+    <td>${slHtml}</td>
+    <td class="${volCls}">${volStr}</td>
+  </tr>`;
+}
+
+// ── HELPERS ──────────────────────────────────────────────────────
+function fmt(v) {
+  return v != null ? Number(v).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) : '–';
+}
+function inr(v) { return fmt(v); }
+
+function setF(btn) {
+  document.querySelectorAll('.fb').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  curFilter = btn.dataset.f;
+  render();
+}
+
+function srt(col) {
+  if (sortCol===col) sortDir*=-1; else { sortCol=col; sortDir=-1; }
+  document.querySelectorAll('thead th').forEach(t=>t.classList.remove('sorted'));
+  event.currentTarget.classList.add('sorted');
+  render();
+}
+
+async function doRefresh() {
+  const btn = document.getElementById('ref-btn');
+  btn.disabled = true; btn.textContent = '⟳ Scanning…';
+  showOv2('Starting scan…');
+  try {
+    await fetch(`${API}/api/refresh`,{method:'POST'});
+    let tries = 0;
+    while (tries++ < 120) {
+      await sleep(2500);
+      const d = await (await fetch(`${API}/api/status`)).json();
+      document.getElementById('ov-prog').textContent = d.progress ? d.progress+'%' : '';
+      updateProg(d.progress||0);
+      if (!d.scanning) {
+        await fetchScan();
+        break;
+      }
+    }
+  } catch(e) { showErr('Refresh failed: '+e.message); }
+  finally { btn.disabled=false; btn.textContent='⟳ Scan Now'; hideOv(); hideProg(); resetCd(); }
+}
+
+// ── PROGRESS ──────────────────────────────────────────────────────
+function updateProg(pct) { document.getElementById('prog-fill').style.width=pct+'%'; }
+function hideProg() { document.getElementById('prog-fill').style.width='0%'; }
+
+// ── OVERLAY ───────────────────────────────────────────────────────
+function showOv2(msg) {
+  document.getElementById('ov-msg').innerHTML = msg||'Loading…';
+  document.getElementById('overlay').classList.add('show');
+}
+function hideOv() { document.getElementById('overlay').classList.remove('show'); }
+
+// ── ERROR ─────────────────────────────────────────────────────────
+function showErr(msg) {
+  const el=document.getElementById('err-banner');
+  el.textContent='⚠ '+msg; el.classList.add('show');
+}
+function hideErr() { document.getElementById('err-banner').classList.remove('show'); }
+
+// ── COUNTDOWN ─────────────────────────────────────────────────────
+function resetCd() {
+  cdVal = AUTO_SECS;
+  if(cdTimer) clearInterval(cdTimer);
+  cdTimer = setInterval(async()=>{
+    cdVal--;
+    document.getElementById('cdown').textContent=`auto: ${cdVal}s`;
+    if(cdVal<=0){ cdVal=AUTO_SECS; await fetchScan(); }
+  }, 1000);
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ── INIT ──────────────────────────────────────────────────────────
+(async()=>{
+  await fetchStatus();
+  await fetchScan(true);
+  resetCd();
+  setInterval(fetchStatus, 30_000);
+})();
+</script>
+</body>
+</html>

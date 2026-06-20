@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOSS Trading Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg:       #0a0c0f;
+  --bg2:      #111418;
+  --bg3:      #181c22;
+  --border:   #1e2530;
+  --border2:  #2a3340;
+  --text:     #c8d0db;
+  --muted:    #4a5568;
+  --dim:      #2d3748;
+  --call:     #00d97e;
+  --call-dim: #003d21;
+  --put:      #ff4d6d;
+  --put-dim:  #3d0012;
+  --win:      #00d97e;
+  --loss:     #ff4d6d;
+  --acc:      #4fc3f7;
+  --acc-dim:  #0d2d3d;
+  --warn:     #ffd54f;
+  --warn-dim: #2d2200;
+  --mono:     'JetBrains Mono', monospace;
+  --sans:     'Space Grotesk', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; }
+
+/* ── LAYOUT ── */
+.shell { display: grid; grid-template-rows: 48px 1fr; height: 100vh; }
+header { display: flex; align-items: center; gap: 16px; padding: 0 20px; border-bottom: 1px solid var(--border); background: var(--bg2); }
+header .logo { font-family: var(--mono); font-size: 15px; font-weight: 700; letter-spacing: 2px; color: var(--acc); }
+header .sep  { flex:1; }
+.status-dot  { width:8px; height:8px; border-radius:50%; background:var(--muted); transition:.3s; }
+.status-dot.online { background:var(--win); box-shadow:0 0 8px var(--win); }
+#server-url  { font-family:var(--mono); font-size:11px; color:var(--muted); }
+.tabs { display: flex; gap: 2px; }
+.tab { padding: 6px 16px; font-size: 12px; font-weight: 500; cursor: pointer; border-radius: 4px; color: var(--muted); transition: .15s; letter-spacing:.5px; background:transparent; border:none; font-family:var(--sans); }
+.tab:hover { color: var(--text); background: var(--bg3); }
+.tab.active { color: var(--acc); background: var(--acc-dim); }
+
+.body   { display: grid; grid-template-columns: 260px 1fr; overflow: hidden; }
+.sidebar{ border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+.main   { overflow-y: auto; }
+
+/* ── SIDEBAR ── */
+.sb-block { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.sb-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+
+.metric { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.metric .k { font-size: 11px; color: var(--muted); }
+.metric .v { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text); }
+.metric .v.pos { color: var(--win); }
+.metric .v.neg { color: var(--loss); }
+
+.trade-pill { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; border: 1px solid var(--border2); }
+.trade-pill.call-active { border-color: var(--call); background: var(--call-dim); }
+.trade-pill.put-active  { border-color: var(--put);  background: var(--put-dim);  }
+.trade-pill .badge { font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:1px; padding:2px 7px; border-radius:3px; }
+.trade-pill.call-active .badge { background:var(--call); color:#000; }
+.trade-pill.put-active  .badge { background:var(--put);  color:#fff; }
+.trade-pill .info { flex:1; }
+.trade-pill .info .price { font-family:var(--mono); font-size:13px; font-weight:600; }
+.trade-pill .info .time  { font-size:10px; color:var(--muted); margin-top:1px; }
+.trade-pill .unreal { font-family:var(--mono); font-size:12px; font-weight:600; }
+
+.big-pnl { font-family: var(--mono); font-size: 28px; font-weight: 700; letter-spacing: -1px; }
+.big-pnl.pos { color: var(--win); }
+.big-pnl.neg { color: var(--loss); }
+.big-pnl.zero { color: var(--muted); }
+
+.sb-btn { width:100%; padding:9px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid; font-family:var(--sans); letter-spacing:.5px; transition:.15s; margin-bottom:6px; }
+.sb-btn:last-child { margin-bottom:0; }
+.sb-btn.refresh { background:var(--acc-dim); color:var(--acc); border-color:var(--acc); }
+.sb-btn.refresh:hover { background:var(--acc); color:#000; }
+.sb-btn.reset   { background:var(--warn-dim); color:var(--warn); border-color:var(--warn); }
+.sb-btn.reset:hover { background:var(--warn); color:#000; }
+.sb-btn.danger  { background:#200a0a; color:var(--loss); border-color:var(--loss); }
+.sb-btn.danger:hover { background:var(--loss); color:#fff; }
+
+/* ── MAIN PANELS ── */
+.panel { display: none; padding: 20px; }
+.panel.active { display: block; }
+
+.panel-title { font-size:11px; font-weight:600; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:16px; }
+
+/* P&L table */
+.trades-table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11.5px; }
+.trades-table th { padding:8px 10px; text-align:left; font-size:10px; letter-spacing:1px; color:var(--muted); border-bottom:1px solid var(--border); font-family:var(--sans); font-weight:600; }
+.trades-table td { padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.trades-table tr:last-child td { border-bottom:none; }
+.trades-table tr:hover td { background:var(--bg3); }
+.trades-table .win  td:first-child { border-left:2px solid var(--win); }
+.trades-table .loss td:first-child { border-left:2px solid var(--loss); }
+.pnl-chip { display:inline-block; padding:2px 8px; border-radius:3px; font-size:11px; font-weight:600; }
+.pnl-chip.pos { background:rgba(0,217,126,.12); color:var(--win); }
+.pnl-chip.neg { background:rgba(255,77,109,.12); color:var(--loss); }
+.side-chip { display:inline-block; padding:2px 7px; border-radius:3px; font-size:10px; font-weight:700; letter-spacing:.5px; }
+.side-chip.call { background:var(--call-dim); color:var(--call); }
+.side-chip.put  { background:var(--put-dim);  color:var(--put);  }
+
+.date-nav { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.date-nav input { background:var(--bg3); border:1px solid var(--border2); color:var(--text); padding:6px 10px; border-radius:5px; font-family:var(--mono); font-size:12px; width:150px; }
+.date-nav input:focus { outline:none; border-color:var(--acc); }
+.date-nav button { padding:6px 14px; background:var(--bg3); border:1px solid var(--border2); color:var(--text); border-radius:5px; cursor:pointer; font-family:var(--sans); font-size:12px; }
+.date-nav button:hover { border-color:var(--acc); color:var(--acc); }
+
+.summary-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px; }
+.sc { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+.sc .sc-label { font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; font-weight:600; margin-bottom:6px; }
+.sc .sc-val   { font-family:var(--mono); font-size:20px; font-weight:700; }
+.sc .sc-val.pos { color:var(--win); }
+.sc .sc-val.neg { color:var(--loss); }
+
+/* CONFIG editor */
+.cfg-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.cfg-section { background:var(--bg2); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.cfg-section-title { padding:10px 14px; font-size:10px; letter-spacing:1.5px; font-weight:600; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--border); background:var(--bg3); }
+.cfg-row { display:flex; flex-direction:column; gap:4px; padding:10px 14px; border-bottom:1px solid var(--border); }
+.cfg-row:last-child { border-bottom:none; }
+.cfg-row label { font-size:10px; color:var(--muted); font-weight:600; letter-spacing:.5px; }
+.cfg-row input, .cfg-row select { background:var(--bg3); border:1px solid var(--border2); color:var(--text); padding:6px 10px; border-radius:4px; font-family:var(--mono); font-size:12px; width:100%; }
+.cfg-row input:focus, .cfg-row select:focus { outline:none; border-color:var(--acc); }
+.cfg-row input[type="password"] { letter-spacing:2px; }
+.cfg-row .hint { font-size:10px; color:var(--muted); }
+.save-btn { margin-top:14px; padding:10px 24px; background:var(--call); color:#000; border:none; border-radius:6px; font-weight:700; font-size:13px; cursor:pointer; font-family:var(--sans); letter-spacing:.5px; }
+.save-btn:hover { filter:brightness(1.15); }
+.cfg-full { grid-column:1/-1; }
+.token-area { width:100%; background:var(--bg3); border:1px solid var(--border2); color:var(--text); padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:11px; resize:vertical; min-height:80px; }
+.token-area:focus { outline:none; border-color:var(--acc); }
+
+/* Option chain */
+.chain-header { display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+.chain-header .atm-badge { background:var(--acc-dim); color:var(--acc); border:1px solid var(--acc); padding:4px 12px; border-radius:4px; font-family:var(--mono); font-size:12px; font-weight:600; }
+.chain-table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11.5px; }
+.chain-table th { padding:7px 10px; text-align:right; font-size:10px; letter-spacing:1px; color:var(--muted); border-bottom:1px solid var(--border); font-family:var(--sans); font-weight:600; }
+.chain-table th.strike-col { text-align:center; color:var(--text); }
+.chain-table td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:right; }
+.chain-table td.strike-col { text-align:center; font-weight:700; color:var(--text); background:var(--bg3); }
+.chain-table .atm-row td { background:rgba(79,195,247,.06); }
+.chain-table .atm-row td.strike-col { color:var(--acc); border-left:2px solid var(--acc); border-right:2px solid var(--acc); }
+.call-side { color:var(--call); }
+.put-side  { color:var(--put); }
+.chain-table th.call-hdr { color:var(--call); }
+.chain-table th.put-hdr  { color:var(--put); }
+
+/* Log panel */
+.log-area { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px; font-family:var(--mono); font-size:11px; line-height:1.7; max-height:calc(100vh - 160px); overflow-y:auto; color:var(--text); white-space:pre-wrap; word-break:break-all; }
+.log-area .l-info  { color:var(--text); }
+.log-area .l-warn  { color:var(--warn); }
+.log-area .l-error { color:var(--loss); }
+.log-area .l-buy   { color:var(--call); font-weight:600; }
+.log-area .l-sell  { color:var(--put); font-weight:600; }
+
+/* toast */
+.toast { position:fixed; bottom:24px; right:24px; background:var(--bg3); border:1px solid var(--border2); border-radius:8px; padding:10px 18px; font-size:12px; opacity:0; transform:translateY(10px); transition:.25s; pointer-events:none; z-index:999; }
+.toast.show { opacity:1; transform:translateY(0); }
+.toast.ok   { border-color:var(--win); color:var(--win); }
+.toast.err  { border-color:var(--loss); color:var(--loss); }
+
+/* scrollbar */
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+
+/* spinner */
+.spin { animation: spin .8s linear infinite; display:inline-block; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="shell">
+<header>
+  <div class="logo">SOSS v7.11</div>
+  <div class="status-dot" id="dot"></div>
+  <span style="font-size:11px;color:var(--muted)" id="conn-label">connecting…</span>
+  <div class="sep"></div>
+  <div class="tabs">
+    <button class="tab active" onclick="showPanel('pnl')">P&amp;L</button>
+    <button class="tab" onclick="showPanel('chain')">Option Chain</button>
+    <button class="tab" onclick="showPanel('config')">Config</button>
+    <button class="tab" onclick="showPanel('logs')">Logs</button>
+  </div>
+  <div style="margin-left:12px">
+    <span style="font-size:10px;color:var(--muted);margin-right:6px">Bot URL</span>
+    <input id="server-url" type="text" value="http://localhost:5000" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:4px 8px;border-radius:4px;font-family:var(--mono);font-size:11px;width:190px;" oninput="BOT=this.value.replace(/\/$/,'')">
+  </div>
+</header>
+<div class="body">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sb-block">
+    <div class="sb-label">Net P&amp;L Today</div>
+    <div class="big-pnl zero" id="sb-net">—</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:4px">Realized + Unrealized (ref)</div>
+  </div>
+  <div class="sb-block">
+    <div class="sb-label">Live Positions</div>
+    <div id="sb-positions">
+      <div style="font-size:11px;color:var(--muted);padding:4px 0">No open trades</div>
+    </div>
+  </div>
+  <div class="sb-block">
+    <div class="sb-label">Session Stats</div>
+    <div class="metric"><span class="k">Realized</span><span class="v" id="sb-real">—</span></div>
+    <div class="metric"><span class="k">Unrealized</span><span class="v" id="sb-unreal">—</span></div>
+    <div class="metric"><span class="k">Trades today</span><span class="v" id="sb-count">—</span></div>
+    <div class="metric"><span class="k">Win rate</span><span class="v" id="sb-wr">—</span></div>
+    <div class="metric"><span class="k">Max daily loss</span><span class="v" id="sb-mdl">₹5,000</span></div>
+    <div class="metric"><span class="k">Max trades</span><span class="v" id="sb-mtd">6/day</span></div>
+  </div>
+  <div class="sb-block">
+    <div class="sb-label">Controls</div>
+    <button class="sb-btn refresh" onclick="refreshAll()">↻ Refresh</button>
+    <button class="sb-btn reset" onclick="confirmReset()">⚠ Reset Bot State</button>
+    <button class="sb-btn danger" onclick="testSignal('BUY_CALL')">TEST BUY_CALL</button>
+    <button class="sb-btn danger" onclick="testSignal('EXIT_CALL')">TEST EXIT_CALL</button>
+  </div>
+  <div class="sb-block" style="flex:1">
+    <div class="sb-label">Connection</div>
+    <div class="metric"><span class="k">Health</span><span class="v" id="sb-health">—</span></div>
+    <div class="metric"><span class="k">Mode</span><span class="v" id="sb-mode">—</span></div>
+    <div class="metric"><span class="k">Telegram</span><span class="v" id="sb-tg">—</span></div>
+    <div class="metric"><span class="k">Last update</span><span class="v" id="sb-ts" style="font-size:10px">—</span></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- P&L PANEL -->
+  <div class="panel active" id="panel-pnl">
+    <div class="panel-title">Trade History &amp; P&amp;L</div>
+    <div class="date-nav">
+      <input type="date" id="pnl-date">
+      <button onclick="loadPnL()">Load</button>
+      <button onclick="loadToday()">Today</button>
+      <span id="pnl-loading" style="color:var(--muted);font-size:11px"></span>
+    </div>
+    <div class="summary-cards">
+      <div class="sc"><div class="sc-label">Total P&amp;L</div><div class="sc-val" id="sc-total">—</div></div>
+      <div class="sc"><div class="sc-label">Trades</div><div class="sc-val" id="sc-trades">—</div></div>
+      <div class="sc"><div class="sc-label">Winners</div><div class="sc-val pos" id="sc-win">—</div></div>
+      <div class="sc"><div class="sc-label">Losers</div><div class="sc-val neg" id="sc-loss">—</div></div>
+    </div>
+    <table class="trades-table">
+      <thead>
+        <tr>
+          <th>Entry</th><th>Exit</th><th>Instrument</th><th>Side</th>
+          <th>Qty</th><th style="text-align:right">Entry ₹</th>
+          <th style="text-align:right">Exit ₹</th>
+          <th style="text-align:right">P&amp;L ₹</th>
+          <th style="text-align:right">Cumul ₹</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody id="pnl-body">
+        <tr><td colspan="10" style="color:var(--muted);text-align:center;padding:24px">Load a date to see trades</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- OPTION CHAIN PANEL -->
+  <div class="panel" id="panel-chain">
+    <div class="panel-title">Nifty Option Chain</div>
+    <div class="chain-header">
+      <button class="sb-btn refresh" style="width:auto;margin:0;padding:7px 18px" onclick="loadChain()">Fetch Chain</button>
+      <span id="chain-expiry" style="font-size:11px;color:var(--muted)">Click Fetch to load</span>
+      <span class="atm-badge" id="chain-atm" style="display:none"></span>
+      <span id="chain-spot" style="font-family:var(--mono);font-size:13px;color:var(--acc)"></span>
+    </div>
+    <div id="chain-container">
+      <div style="color:var(--muted);font-size:11px;padding:20px 0">Chain will load from the KEY_NIFTY script via bot.</div>
+    </div>
+  </div>
+
+  <!-- CONFIG PANEL -->
+  <div class="panel" id="panel-config">
+    <div class="panel-title">Configuration</div>
+    <div class="cfg-grid">
+
+      <div class="cfg-section">
+        <div class="cfg-section-title">Upstox API</div>
+        <div class="cfg-row">
+          <label>Token (paste new JWT here)</label>
+          <textarea class="token-area" id="cfg-token" placeholder="Paste new Upstox access token…"></textarea>
+          <span class="hint">Expires daily — paste fresh token from Upstox developer console</span>
+        </div>
+        <div class="cfg-row">
+          <label>Call Instrument Key (BUY)</label>
+          <input type="text" id="cfg-call-key" placeholder="NSE_FO|XXXXX">
+        </div>
+        <div class="cfg-row">
+          <label>Put Instrument Key (SELL)</label>
+          <input type="text" id="cfg-put-key" placeholder="NSE_FO|XXXXX">
+        </div>
+        <div class="cfg-row">
+          <label>Trade Qty (per lot)</label>
+          <input type="number" id="cfg-qty" placeholder="65">
+        </div>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-title">Telegram</div>
+        <div class="cfg-row">
+          <label>Bot Token</label>
+          <input type="password" id="cfg-tg-token" placeholder="••••••••">
+          <span class="hint">Rotate at @BotFather → /revoke if compromised</span>
+        </div>
+        <div class="cfg-row">
+          <label>Channel / Chat ID</label>
+          <input type="text" id="cfg-tg-chat" placeholder="@channel or 123456789">
+        </div>
+        <div class="cfg-row">
+          <label>Enable Telegram</label>
+          <select id="cfg-tg-enable"><option value="True">Enabled</option><option value="False">Disabled</option></select>
+        </div>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-title">Risk Controls</div>
+        <div class="cfg-row">
+          <label>Max Daily Loss (₹, 0 = off)</label>
+          <input type="number" id="cfg-mdl" placeholder="5000">
+        </div>
+        <div class="cfg-row">
+          <label>Max Trades Per Day (0 = off)</label>
+          <input type="number" id="cfg-mtd" placeholder="6">
+        </div>
+        <div class="cfg-row">
+          <label>Market Open Cooldown (min)</label>
+          <input type="number" id="cfg-cooldown" placeholder="7">
+        </div>
+        <div class="cfg-row">
+          <label>Exit Retry Count</label>
+          <input type="number" id="cfg-exit-retry" placeholder="2">
+        </div>
+        <div class="cfg-row">
+          <label>Order Verify Seconds</label>
+          <input type="number" id="cfg-verify-sec" placeholder="6">
+        </div>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-title">Webhook & Session</div>
+        <div class="cfg-row">
+          <label>Webhook Secret (ngrok key=)</label>
+          <input type="text" id="cfg-wh-secret" placeholder="leave blank to disable auth">
+        </div>
+        <div class="cfg-row">
+          <label>Session End Hour (IST)</label>
+          <input type="number" id="cfg-sess-h" placeholder="15">
+        </div>
+        <div class="cfg-row">
+          <label>Session End Minute (IST)</label>
+          <input type="number" id="cfg-sess-m" placeholder="15">
+        </div>
+      </div>
+
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+      <button class="save-btn" onclick="saveConfig()">Save config.ini + token.txt</button>
+      <button style="padding:10px 18px;background:var(--bg3);border:1px solid var(--border2);color:var(--muted);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px" onclick="loadConfig()">↻ Reload from files</button>
+      <span id="cfg-status" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div style="margin-top:16px;background:var(--warn-dim);border:1px solid var(--warn);border-radius:6px;padding:10px 14px;font-size:11px;color:var(--warn)">
+      ⚠ Config edits write directly to config.ini and token.txt on disk. Restart the bot after saving for changes to take effect.
+    </div>
+  </div>
+
+  <!-- LOGS PANEL -->
+  <div class="panel" id="panel-logs">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div class="panel-title" style="margin:0">Webhook Log</div>
+      <button style="padding:5px 12px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;cursor:pointer;font-size:11px;font-family:var(--sans)" onclick="loadLogs()">Refresh</button>
+      <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="log-tail" checked> Tail (last 200 lines)
+      </label>
+      <button style="padding:5px 12px;background:var(--bg3);border:1px solid var(--border2);color:var(--muted);border-radius:4px;cursor:pointer;font-size:11px;font-family:var(--sans)" onclick="clearLogView()">Clear view</button>
+    </div>
+    <div class="log-area" id="log-area">Loading logs…</div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /body -->
+</div><!-- /shell -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────
+let BOT = 'http://localhost:5000';
+document.getElementById('server-url').addEventListener('input', e => {
+  BOT = e.target.value.replace(/\/$/,'');
+});
+
+// ── TABS ────────────────────────────────────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'pnl')    loadToday();
+  if (name === 'logs')   loadLogs();
+  if (name === 'config') loadConfig();
+}
+
+// ── TOAST ────────────────────────────────────────────────────────
+function toast(msg, type='ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 2400);
+}
+
+// ── HELPERS ─────────────────────────────────────────────────────
+function fmt(v) {
+  const n = parseFloat(v);
+  if (isNaN(n)) return '—';
+  return (n >= 0 ? '+' : '') + '₹' + Math.abs(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtRaw(v) {
+  const n = parseFloat(v);
+  return isNaN(n) ? '—' : '₹' + n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function colorClass(v) {
+  const n = parseFloat(v);
+  return n > 0 ? 'pos' : n < 0 ? 'neg' : '';
+}
+function todayStr() {
+  return new Date().toISOString().slice(0,10);
+}
+async function apiFetch(path, opts={}) {
+  const r = await fetch(BOT + path, {signal: AbortSignal.timeout(7000), ...opts});
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+// ── STATUS POLLING ───────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const [s, h, day] = await Promise.all([
+      apiFetch('/status'),
+      apiFetch('/health'),
+      apiFetch('/day_summary?date=' + todayStr()),
+    ]);
+
+    // dot
+    document.getElementById('dot').className = 'status-dot online';
+    document.getElementById('conn-label').textContent = 'connected';
+
+    // net PnL
+    const net = s.net_ref_pnl;
+    const el = document.getElementById('sb-net');
+    el.textContent = (net >= 0 ? '+' : '') + '₹' + Math.abs(net).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+    el.className = 'big-pnl ' + (net > 0 ? 'pos' : net < 0 ? 'neg' : 'zero');
+
+    // sidebar metrics
+    document.getElementById('sb-real').textContent = fmt(s.realized_ref_pnl);
+    document.getElementById('sb-real').className = 'v ' + colorClass(s.realized_ref_pnl);
+    document.getElementById('sb-unreal').textContent = fmt(s.unrealized_ref_pnl);
+    document.getElementById('sb-unreal').className = 'v ' + colorClass(s.unrealized_ref_pnl);
+    document.getElementById('sb-count').textContent = s.total_trades;
+
+    // win rate from day summary
+    if (day.total_trades > 0) {
+      const wr = Math.round(100 * day.winners / day.total_trades);
+      document.getElementById('sb-wr').textContent = wr + '% (' + day.winners + '/' + day.total_trades + ')';
+    } else {
+      document.getElementById('sb-wr').textContent = '—';
+    }
+
+    // positions
+    let posHtml = '';
+    if (s.call_trade.active) {
+      const ur = s.call_trade.unrealized;
+      posHtml += `<div class="trade-pill call-active">
+        <div class="badge">CALL</div>
+        <div class="info">
+          <div class="price">₹${s.call_trade.entry_ref.toFixed(2)}</div>
+          <div class="time">${s.call_trade.entry_time || '—'}</div>
+        </div>
+        <div class="unreal ${colorClass(ur)}">${fmt(ur)}</div>
+      </div>`;
+    }
+    if (s.put_trade.active) {
+      const ur = s.put_trade.unrealized;
+      posHtml += `<div class="trade-pill put-active">
+        <div class="badge">PUT</div>
+        <div class="info">
+          <div class="price">₹${s.put_trade.entry_ref.toFixed(2)}</div>
+          <div class="time">${s.put_trade.entry_time || '—'}</div>
+        </div>
+        <div class="unreal ${colorClass(ur)}">${fmt(ur)}</div>
+      </div>`;
+    }
+    if (!posHtml) posHtml = '<div style="font-size:11px;color:var(--muted);padding:4px 0">No open trades</div>';
+    document.getElementById('sb-positions').innerHTML = posHtml;
+
+    // health
+    document.getElementById('sb-health').textContent = h.status === 'ok' ? '✓ OK' : '✗ DOWN';
+    document.getElementById('sb-mode').textContent = h.mode;
+    document.getElementById('sb-tg').textContent = h.telegram ? 'Enabled' : 'Disabled';
+    document.getElementById('sb-ts').textContent = s.timestamp.slice(11,19);
+
+  } catch(e) {
+    document.getElementById('dot').className = 'status-dot';
+    document.getElementById('conn-label').textContent = 'offline — ' + e.message;
+  }
+}
+
+// ── P&L ─────────────────────────────────────────────────────────
+function loadToday() {
+  document.getElementById('pnl-date').value = todayStr();
+  loadPnL();
+}
+
+async function loadPnL() {
+  const d = document.getElementById('pnl-date').value || todayStr();
+  const loading = document.getElementById('pnl-loading');
+  loading.innerHTML = '<span class="spin">⟳</span> Loading…';
+  try {
+    const data = await apiFetch('/day_summary?date=' + d);
+    loading.textContent = '';
+
+    // summary cards
+    const totalEl = document.getElementById('sc-total');
+    totalEl.textContent = (data.total_ref_pnl >= 0 ? '+' : '') + '₹' + Math.abs(data.total_ref_pnl).toLocaleString('en-IN', {minimumFractionDigits:2});
+    totalEl.className = 'sc-val ' + colorClass(data.total_ref_pnl);
+    document.getElementById('sc-trades').textContent = data.total_trades;
+    document.getElementById('sc-win').textContent = data.winners + ' win' + (data.winners !== 1 ? 's' : '');
+    document.getElementById('sc-loss').textContent = data.losers + ' loss' + (data.losers !== 1 ? 'es' : '');
+
+    const tbody = document.getElementById('pnl-body');
+    if (!data.trades.length) {
+      tbody.innerHTML = '<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:24px">No trades on ' + d + '</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.trades.map(t => `
+      <tr class="${t.ref_pnl >= 0 ? 'win' : 'loss'}">
+        <td>${t.entry_time.slice(11,16)}</td>
+        <td>${t.exit_time.slice(11,16)}</td>
+        <td style="font-size:10px">${t.instrument}</td>
+        <td><span class="side-chip ${t.side.toLowerCase()}">${t.side}</span></td>
+        <td>${t.qty}</td>
+        <td style="text-align:right">₹${t.entry_ref.toFixed(2)}</td>
+        <td style="text-align:right">₹${t.exit_ref.toFixed(2)}</td>
+        <td style="text-align:right"><span class="pnl-chip ${t.ref_pnl >= 0 ? 'pos' : 'neg'}">${(t.ref_pnl >= 0 ? '+' : '')}₹${Math.abs(t.ref_pnl).toFixed(2)}</span></td>
+        <td style="text-align:right;font-size:11px;color:var(--muted)">${t.ref_pnl >= 0 ? '+' : ''}₹${Math.abs(t.ref_pnl).toFixed(0)}</td>
+        <td style="font-size:10px;color:var(--muted);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${t.reason}">${t.reason}</td>
+      </tr>`).join('');
+  } catch(e) {
+    loading.textContent = 'Error: ' + e.message;
+    toast('Failed to load P&L: ' + e.message, 'err');
+  }
+}
+
+// ── OPTION CHAIN ─────────────────────────────────────────────────
+// Calls the KEY_NIFTY endpoint via a proxy route on the bot.
+// Since the bot doesn't proxy the chain directly, we call the
+// Upstox API ourselves using the token stored on disk.
+async function loadChain() {
+  const cont = document.getElementById('chain-container');
+  cont.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:16px">Fetching chain via bot /chain proxy…</div>';
+  try {
+    // Try bot proxy first — if available
+    const data = await apiFetch('/chain');
+    renderChain(data);
+  } catch(e) {
+    // Fallback: inform user to add the /chain route
+    cont.innerHTML = `<div style="color:var(--warn);font-size:11px;padding:16px;background:var(--warn-dim);border-radius:6px;border:1px solid var(--warn)">
+      The bot does not expose a <code>/chain</code> route yet.<br><br>
+      Run <b>KEY_NIFTY__OPTFUT.py</b> directly using the button below,
+      or add a <code>/chain</code> Flask route to your bot that calls
+      <code>fetch_option_chain()</code> and returns the JSON.<br><br>
+      <button onclick="runKeyScript()" style="margin-top:8px;padding:7px 16px;background:var(--acc-dim);color:var(--acc);border:1px solid var(--acc);border-radius:5px;cursor:pointer;font-family:var(--sans);font-size:12px;font-weight:600">
+        ▶ Run KEY_NIFTY__OPTFUT via /run_key endpoint
+      </button>
+    </div>`;
+    document.getElementById('chain-expiry').textContent = 'Route not available — see instructions';
+  }
+}
+
+async function runKeyScript() {
+  try {
+    const r = await apiFetch('/run_key_script');
+    toast('Script output: ' + (r.output || 'OK').slice(0,80), 'ok');
+  } catch(e) {
+    toast('Add /run_key_script route to bot: ' + e.message, 'err');
+  }
+}
+
+function renderChain(data) {
+  const expiry = data.expiry || '—';
+  const atm    = data.atm_strike || 0;
+  const spot   = data.spot_price || 0;
+  const rows   = data.chain || [];
+  document.getElementById('chain-expiry').textContent = 'Expiry: ' + expiry;
+  document.getElementById('chain-spot').textContent   = spot ? '₹' + spot.toLocaleString('en-IN') : '';
+  const atmEl = document.getElementById('chain-atm');
+  if (atm) { atmEl.style.display='inline'; atmEl.textContent = 'ATM ' + atm; }
+
+  let html = `<table class="chain-table">
+    <thead><tr>
+      <th class="call-hdr">CE OI</th><th class="call-hdr">CE LTP</th>
+      <th class="strike-col">Strike</th>
+      <th class="put-hdr">PE LTP</th><th class="put-hdr">PE OI</th>
+    </tr></thead><tbody>`;
+  rows.forEach(r => {
+    const isAtm = r.strike === atm;
+    html += `<tr class="${isAtm ? 'atm-row' : ''}">
+      <td class="call-side">${r.ce_oi ? parseInt(r.ce_oi).toLocaleString('en-IN') : '—'}</td>
+      <td class="call-side">${r.ce_ltp ? '₹' + r.ce_ltp.toFixed(2) : '—'}</td>
+      <td class="strike-col">${r.strike}</td>
+      <td class="put-side">${r.pe_ltp ? '₹' + r.pe_ltp.toFixed(2) : '—'}</td>
+      <td class="put-side">${r.pe_oi ? parseInt(r.pe_oi).toLocaleString('en-IN') : '—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('chain-container').innerHTML = html;
+}
+
+// ── CONFIG ────────────────────────────────────────────────────────
+async function loadConfig() {
+  document.getElementById('cfg-status').textContent = 'Loading…';
+  try {
+    const r = await apiFetch('/config');
+    const c = r.config || {};
+    const u = c.upstox    || {};
+    const tg= c.telegram  || {};
+    const ri= c.risk      || {};
+    const st= c.settings  || {};
+    document.getElementById('cfg-call-key').value   = u.Buy_instrument_key  || '';
+    document.getElementById('cfg-put-key').value    = u.Sell_instrument_key || '';
+    document.getElementById('cfg-qty').value        = u.TRADE_QTY           || '';
+    document.getElementById('cfg-tg-token').value   = tg.bot_token          || '';
+    document.getElementById('cfg-tg-chat').value    = tg.channel_id         || '';
+    document.getElementById('cfg-tg-enable').value  = tg.enable_telegram    || 'True';
+    document.getElementById('cfg-mdl').value        = ri.max_daily_loss     || '';
+    document.getElementById('cfg-mtd').value        = ri.max_trades_per_day || '';
+    document.getElementById('cfg-cooldown').value   = ri.market_open_cooldown|| '';
+    document.getElementById('cfg-exit-retry').value = ri.exit_retry_count   || '';
+    document.getElementById('cfg-verify-sec').value = ri.order_verify_sec   || '';
+    document.getElementById('cfg-wh-secret').value  = ri.webhook_secret     || '';
+    document.getElementById('cfg-sess-h').value     = st.sess_end_h         || '';
+    document.getElementById('cfg-sess-m').value     = st.sess_end_m         || '';
+    document.getElementById('cfg-token').value      = r.token               || '';
+    document.getElementById('cfg-status').textContent = 'Loaded';
+    setTimeout(() => document.getElementById('cfg-status').textContent = '', 2000);
+  } catch(e) {
+    document.getElementById('cfg-status').textContent = 'Bot offline — edit locally below';
+  }
+}
+
+async function saveConfig() {
+  const payload = {
+    token: document.getElementById('cfg-token').value.trim(),
+    config: {
+      upstox: {
+        Buy_instrument_key:  document.getElementById('cfg-call-key').value.trim(),
+        Sell_instrument_key: document.getElementById('cfg-put-key').value.trim(),
+        TRADE_QTY:           document.getElementById('cfg-qty').value.trim(),
+      },
+      telegram: {
+        bot_token:      document.getElementById('cfg-tg-token').value.trim(),
+        channel_id:     document.getElementById('cfg-tg-chat').value.trim(),
+        enable_telegram:document.getElementById('cfg-tg-enable').value,
+      },
+      risk: {
+        max_daily_loss:       document.getElementById('cfg-mdl').value.trim(),
+        max_trades_per_day:   document.getElementById('cfg-mtd').value.trim(),
+        market_open_cooldown: document.getElementById('cfg-cooldown').value.trim(),
+        exit_retry_count:     document.getElementById('cfg-exit-retry').value.trim(),
+        order_verify_sec:     document.getElementById('cfg-verify-sec').value.trim(),
+        webhook_secret:       document.getElementById('cfg-wh-secret').value.trim(),
+      }
+    }
+  };
+  try {
+    const r = await apiFetch('/config', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    toast(r.status === 'ok' ? 'Config saved. Restart bot to apply.' : r.reason, r.status === 'ok' ? 'ok' : 'err');
+  } catch(e) {
+    // offline — download files instead
+    downloadConfigFiles(payload);
+  }
+}
+
+function downloadConfigFiles(payload) {
+  // Produce config.ini text
+  const c = payload.config;
+  const ini = `[TELEGRAM]
+bot_token = ${c.telegram.bot_token}
+chat_id = ${c.telegram.channel_id}
+channel_id = ${c.telegram.channel_id}
+enable_telegram = ${c.telegram.enable_telegram}
+
+[UPSTOX]
+token_file = token.txt
+Buy_instrument_key  = ${c.upstox.Buy_instrument_key}
+Sell_instrument_key = ${c.upstox.Sell_instrument_key}
+TRADE_QTY = ${c.upstox.TRADE_QTY}
+
+[SETTINGS]
+timeframe = day
+
+[RISK]
+market_open_cooldown    = ${c.risk.market_open_cooldown}
+breakout_window_minutes = 15
+max_daily_loss          = ${c.risk.max_daily_loss}
+max_trades_per_day      = ${c.risk.max_trades_per_day}
+webhook_secret          = ${c.risk.webhook_secret}
+exit_retry_count        = ${c.risk.exit_retry_count}
+order_verify_sec        = ${c.risk.order_verify_sec}
+`;
+  dl('config.ini', ini);
+  if (payload.token) dl('token.txt', payload.token);
+  toast('Bot offline — config.ini (& token.txt) downloaded. Copy to bot folder.', 'ok');
+}
+
+function dl(name, content) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type:'text/plain'}));
+  a.download = name; a.click();
+}
+
+// ── LOGS ─────────────────────────────────────────────────────────
+async function loadLogs() {
+  const area = document.getElementById('log-area');
+  const tail = document.getElementById('log-tail').checked;
+  try {
+    const r = await apiFetch('/logs' + (tail ? '?tail=200' : ''));
+    const lines = (r.content || '').split('\n');
+    area.innerHTML = lines.map(line => {
+      if (!line) return '';
+      const l = line.toLowerCase();
+      let cls = 'l-info';
+      if (l.includes('[warning]') || l.includes('warning')) cls = 'l-warn';
+      else if (l.includes('[error]') || l.includes('error')) cls = 'l-error';
+      else if (l.includes('buy_call') || l.includes('buy call') || l.includes('entry') && l.includes('call')) cls = 'l-buy';
+      else if (l.includes('buy_put')  || l.includes('buy put')  || l.includes('entry') && l.includes('put'))  cls = 'l-sell';
+      return `<span class="${cls}">${esc(line)}</span>`;
+    }).join('\n');
+    area.scrollTop = area.scrollHeight;
+  } catch(e) {
+    area.textContent = 'Bot offline — cannot fetch logs.\n\nOpen webhook_live_trade.log directly in a text editor.';
+  }
+}
+function clearLogView() { document.getElementById('log-area').innerHTML = ''; }
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── CONTROLS ─────────────────────────────────────────────────────
+function refreshAll() { pollStatus(); toast('Refreshed'); }
+
+async function confirmReset() {
+  if (!confirm('Reset bot state? This clears all in-memory trade state but does NOT close positions at broker.')) return;
+  try {
+    await apiFetch('/reset', {method:'POST'});
+    toast('Bot state reset', 'ok');
+    pollStatus();
+  } catch(e) { toast('Reset failed: ' + e.message, 'err'); }
+}
+
+async function testSignal(sig) {
+  if (!confirm('Send TEST signal: ' + sig + '?')) return;
+  try {
+    const r = await apiFetch('/test_signal?signal=' + sig + '&price=0');
+    toast('Test ' + sig + ' → ' + r.status, 'ok');
+    setTimeout(pollStatus, 800);
+  } catch(e) { toast('Test failed: ' + e.message, 'err'); }
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+loadToday();
+pollStatus();
+setInterval(pollStatus, 10000); // poll every 10s
+</script>
+</body>
+</html>

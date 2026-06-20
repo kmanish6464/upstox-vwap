@@ -1,0 +1,77 @@
+# NSE OI Monitor — Requirements & Quick Start
+# =============================================
+
+# ── Python dependencies ──
+# pip install -r requirements.txt
+
+requests==2.31.0
+pymongo==4.6.3
+schedule==1.2.1
+pandas==2.2.2
+matplotlib==3.8.4
+
+
+# ── Quick Start ──────────────────────────────────────────────────
+#
+# 1. Install MongoDB (if not already):
+#       https://www.mongodb.com/docs/manual/installation/
+#    Start it:
+#       mongod --dbpath /data/db
+#
+# 2. Install Python deps:
+#       pip install -r requirements.txt
+#
+# 3. Terminal 1 — start the fetcher (writes to MongoDB every 10s):
+#       python nse_oi_fetcher.py
+#
+# 4. Terminal 2 — start the plotter (reads from MongoDB, live chart):
+#       python nse_oi_plotter.py
+#
+# ── Config (top of each file) ────────────────────────────────────
+#
+#   SYMBOL            = "NIFTY"       # or BANKNIFTY, FINNIFTY, MIDCPNIFTY
+#   MONGO_URI         = "mongodb://localhost:27017/"
+#   DB_NAME           = "nse_oi_db"
+#   FETCH_INTERVAL    = 10            # seconds
+#   STRIKES_EACH_SIDE = 10            # ±10 strikes around ATM
+#
+# ── MongoDB Collections ──────────────────────────────────────────
+#
+#   nse_oi_db.oi_snapshots    full raw JSON per fetch
+#   nse_oi_db.oi_summary      per-strike CE/PE OI, OI change, IV, LTP, PCR
+#
+# ── Query examples ───────────────────────────────────────────────
+#
+#   from pymongo import MongoClient
+#   import pandas as pd
+#
+#   db = MongoClient()["nse_oi_db"]
+#
+#   # Last snapshot for NIFTY
+#   latest = db.oi_summary.find({"symbol": "NIFTY"}).sort("timestamp", -1).limit(50)
+#   df = pd.DataFrame(list(latest))
+#
+#   # OI history for a specific strike
+#   df = pd.DataFrame(list(
+#       db.oi_summary.find({"symbol": "NIFTY", "strike": 22500})
+#                    .sort("timestamp", 1)
+#   ))
+#
+# ── Chart panels ─────────────────────────────────────────────────
+#
+#   Top panel   : CE vs PE OI Change bar chart (±10 strikes around ATM)
+#                 Gold dashed line = ATM
+#                 PCR (OI), total CE OI, total PE OI shown on chart
+#   Bottom-left : CE OI Change time-series at ATM strike
+#   Bottom-right: PE OI Change time-series at ATM strike
+#
+# ── Notes ────────────────────────────────────────────────────────
+#
+#   • NSE blocks headless scrapers; the session warm-up fetches cookies
+#     from the homepage exactly like a browser would.
+#   • If you get repeated 401s, add a longer sleep in warm_session()
+#     or rotate your User-Agent string.
+#   • Market hours: 09:15–15:30 IST. OI changes meaningfully only
+#     during trading hours.
+#   • For production, consider running the fetcher as a systemd service
+#     or Docker container.

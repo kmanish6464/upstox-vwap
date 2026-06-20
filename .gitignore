@@ -1,0 +1,25 @@
+# Sensitive credentials
+token.txt
+config.ini
+config_old.ini
+KConfig.ini
+
+# Logs
+*.log
+
+# Data / cache
+*.pkl
+*.csv
+data/
+nse_cache/
+nifty-dashboard/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Temp
+.tmp.driveupload/
+MANISH0604.txt
